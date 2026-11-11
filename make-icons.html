@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MEGH icon maker</title>
+
+<p>Tap each button to save an app icon.</p>
+<button onclick="makeIcon(192)">Download 192 × 192 icon</button>
+<button onclick="makeIcon(512)">Download 512 × 512 icon</button>
+
+<script>
+function makeIcon(size) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#07121d";
+  ctx.fillRect(0, 0, size, size);
+
+  const gradient = ctx.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, "#b5f0df");
+  gradient.addColorStop(1, "#eec681");
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#07121d";
+  ctx.font = `900 ${size * 0.48}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("M", size / 2, size * 0.52);
+
+  const link = document.createElement("a");
+  link.download = `icon-${size}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+</script>

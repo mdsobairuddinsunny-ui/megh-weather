@@ -1,0 +1,1666 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07121d">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <title>MEGH — Bangladesh Weather Atlas</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07121d;
+      --panel: rgba(15, 30, 44, .88);
+      --panel2: rgba(20, 39, 55, .78);
+      --line: rgba(195, 220, 240, .12);
+      --text: #eef6fc;
+      --muted: #91a6b7;
+      --muted2: #61798d;
+      --gold: #f3c77d;
+      --cyan: #7ee4df;
+      --mint: #8ce4ba;
+      --blue: #83b9ff;
+      --red: #ff8f81;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 12% 0%, rgba(35, 96, 117, .23), transparent 38rem),
+        radial-gradient(ellipse at 90% 18%, rgba(88, 71, 120, .18), transparent 34rem),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .app-shell { max-width: 1440px; margin: auto; padding: 24px 32px 48px; }
+    .topbar, .brand, .header-right, .toolbar, .tool-group, .section-head, .hero-top, .hero-bottom,
+    .metric-head, .chart-head, .map-head, .radar-controls, .selected-readout, .moon-row, .modal-head {
+      display: flex;
+      align-items: center;
+    }
+    .topbar { justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .brand { gap: 12px; min-width: 245px; }
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      color: #09202a;
+      font-weight: 900;
+      font-size: 20px;
+      background: linear-gradient(145deg, #b5f0df, #eec681);
+      box-shadow: 0 8px 30px rgba(126, 228, 223, .18);
+    }
+    .brand-name { letter-spacing: .18em; font-size: 17px; font-weight: 800; }
+    .brand-sub { color: var(--muted); font-size: 9px; letter-spacing: .16em; margin-top: 3px; }
+    .header-right { justify-content: flex-end; gap: 12px; }
+    .clock-chip, .pill {
+      border: 1px solid var(--line);
+      background: rgba(14, 29, 43, .66);
+      border-radius: 999px;
+      padding: 8px 12px;
+    }
+    .clock-chip { text-align: right; min-width: 112px; }
+    .clock-chip strong { display: block; font-size: 13px; }
+    .clock-chip small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
+    .icon-button, .tool-button, .primary-button, .seg-button, .chart-tab, .radar-button, .close-button, .modal-done {
+      border: 1px solid var(--line);
+      background: rgba(20, 39, 55, .72);
+      border-radius: 12px;
+      padding: 10px 13px;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+    .icon-button:hover, .tool-button:hover, .seg-button:hover, .chart-tab:hover, .radar-button:hover, .close-button:hover {
+      border-color: rgba(126,228,223,.42);
+      transform: translateY(-1px);
+    }
+    .icon-button { min-height: 40px; }
+    .toolbar {
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 12px;
+      margin-bottom: 20px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: rgba(10, 23, 35, .67);
+      backdrop-filter: blur(12px);
+    }
+    .tool-group { gap: 8px; }
+    .toolbar select, .toolbar input, .setting-control {
+      color: var(--text);
+      background: rgba(6, 17, 27, .7);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    .toolbar select:focus, .toolbar input:focus, .setting-control:focus { border-color: var(--cyan); }
+    .toolbar select { min-width: 148px; }
+    .search-box { display: flex; gap: 6px; flex: 1; min-width: 230px; }
+    .search-box input { min-width: 70px; width: 100%; }
+    .search-box button, .primary-button {
+      border: 0;
+      color: #08202a;
+      font-weight: 750;
+      background: linear-gradient(135deg, #a9eee0, #eec77d);
+    }
+    .search-box button { padding: 0 16px; border-radius: 11px; cursor: pointer; }
+    .tool-button { white-space: nowrap; }
+    .toolbar-spacer { flex: 1; }
+    .last-updated { color: var(--muted); font-size: 10px; white-space: nowrap; padding: 0 4px; }
+    .panel {
+      background: linear-gradient(145deg, rgba(19, 38, 54, .92), rgba(11, 25, 38, .91));
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .16);
+    }
+    .hero-card {
+      min-height: 316px;
+      position: relative;
+      overflow: hidden;
+      padding: 28px 34px 22px;
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 20px;
+      background:
+        radial-gradient(ellipse at 78% 42%, rgba(94, 159, 171, .24), transparent 19rem),
+        radial-gradient(ellipse at 12% 12%, rgba(191, 149, 93, .11), transparent 24rem),
+        linear-gradient(120deg, #122a3b, #0e1d2c 67%, #14263a);
+    }
+    .hero-card.night-mode {
+      background:
+        radial-gradient(ellipse at 78% 42%, rgba(87, 109, 169, .2), transparent 19rem),
+        linear-gradient(120deg, #102235, #0b1727 68%, #171d36);
+    }
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -8% -90% 28%;
+      height: 230px;
+      background: radial-gradient(ellipse, rgba(126,228,223,.10), transparent 70%);
+      pointer-events: none;
+    }
+    .hero-copy, .hero-visual { position: relative; z-index: 1; }
+    .hero-copy { display: flex; flex-direction: column; align-items: flex-start; }
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(140,228,186,.23);
+      background: rgba(140,228,186,.07);
+      color: #a9e9c8;
+      font-size: 9px;
+      letter-spacing: .14em;
+      padding: 7px 10px;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--mint);
+      box-shadow: 0 0 12px var(--mint);
+      animation: pulse 1.7s infinite;
+    }
+    .kicker { color: var(--muted); font-size: 10px; letter-spacing: .16em; margin: 19px 0 4px; }
+    .hero-city {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(34px, 4vw, 53px);
+      font-weight: 500;
+      letter-spacing: -.03em;
+    }
+    .hero-meta { color: var(--muted); margin-top: 5px; font-size: 11px; }
+    .temperature-row { display: flex; align-items: flex-start; margin-top: 15px; }
+    .hero-temp { font-size: clamp(62px, 8vw, 93px); line-height: .96; font-weight: 300; letter-spacing: -.08em; }
+    .hero-unit { font-size: 20px; color: var(--muted); padding: 9px 0 0 7px; }
+    .hero-condition { margin-top: 8px; font-family: Georgia, "Times New Roman", serif; font-size: 20px; }
+    .hero-feel { color: var(--muted); margin-top: 6px; font-size: 12px; }
+    .hero-visual { display: flex; align-items: center; justify-content: center; min-height: 185px; }
+    .hero-art { position: relative; width: min(250px, 100%); height: 215px; display: grid; place-items: center; }
+    .art-halo {
+      position: absolute;
+      width: 172px;
+      height: 172px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(243,199,125,.20), rgba(126,228,223,.08) 50%, transparent 73%);
+      animation: halo 5s ease-in-out infinite;
+    }
+    .weather-glyph {
+      position: relative;
+      z-index: 1;
+      font-size: 105px;
+      filter: drop-shadow(0 14px 20px rgba(0,0,0,.25));
+      animation: float 4s ease-in-out infinite;
+    }
+    .art-caption { position: absolute; bottom: 10px; color: #d4e1e9; font-size: 11px; letter-spacing: .06em; }
+    .hero-bottom {
+      grid-column: 1 / -1;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .hero-bottom-item { padding-left: 14px; border-left: 1px solid var(--line); }
+    .hero-bottom-item:first-child { border-left: 0; padding-left: 0; }
+    .hero-bottom-item span { display: block; color: var(--muted); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+    .hero-bottom-item strong { display: block; margin-top: 6px; font-size: 14px; font-weight: 650; }
+    .section-title { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin: 30px 2px 14px; }
+    .eyebrow { color: var(--cyan); letter-spacing: .17em; font-size: 9px; margin: 0 0 5px; }
+    .section-title h2, .section-head h2, .map-head h2 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 500;
+      font-size: 24px;
+    }
+    .muted { color: var(--muted); font-size: 11px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 11px; }
+    .metric-card { min-height: 123px; padding: 15px; }
+    .metric-head { justify-content: space-between; color: var(--muted); font-size: 10px; }
+    .metric-icon { font-size: 16px; }
+    .metric-value { font-size: 21px; font-weight: 650; margin-top: 16px; letter-spacing: -.03em; }
+    .metric-note { color: var(--muted); margin-top: 5px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .main-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .85fr); gap: 15px; margin-top: 16px; }
+    .explorer, .sky-panel, .forecast-panel, .map-panel, .air-panel, .outlook-panel, .details-panel { padding: 20px; }
+    .section-head, .chart-head, .map-head { justify-content: space-between; gap: 12px; }
+    .section-head h2, .map-head h2 { font-size: 21px; }
+    .section-head .eyebrow { margin-bottom: 5px; }
+    .segmented { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: rgba(4,14,23,.55); }
+    .seg-button, .chart-tab { padding: 8px 10px; font-size: 10px; border-radius: 9px; background: transparent; border-color: transparent; color: var(--muted); }
+    .seg-button.active, .chart-tab.active { background: rgba(126,228,223,.13); color: var(--cyan); border-color: rgba(126,228,223,.2); }
+    .chart-head { margin: 18px 0 8px; }
+    .chart-tabs { display: flex; gap: 4px; }
+    .chart-caption { color: var(--muted); font-size: 10px; }
+    .chart-box { width: 100%; height: 196px; }
+    .chart-box svg { width: 100%; height: 100%; overflow: visible; }
+    .chart-gridline { stroke: rgba(189,213,231,.1); stroke-width: 1; }
+    .chart-label { fill: #8298aa; font-size: 10px; }
+    .hourly-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 10px 1px 7px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(126,228,223,.3) transparent;
+    }
+    .hour-card {
+      flex: 0 0 68px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      padding: 10px 7px;
+      background: rgba(5,16,26,.42);
+      text-align: center;
+      cursor: pointer;
+      color: var(--text);
+      transition: .18s ease;
+    }
+    .hour-card:hover, .hour-card.active {
+      border-color: rgba(126,228,223,.54);
+      background: rgba(126,228,223,.09);
+      transform: translateY(-2px);
+    }
+    .hour-time { display: block; color: var(--muted); font-size: 9px; white-space: nowrap; }
+    .hour-icon { display: block; font-size: 21px; margin: 8px 0 5px; }
+    .hour-temp { display: block; font-size: 13px; font-weight: 650; }
+    .hour-rain { display: block; color: #92c9ff; margin-top: 5px; font-size: 9px; }
+    .selected-readout {
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(5,16,26,.43);
+    }
+    .selected-main { display: flex; align-items: center; gap: 10px; }
+    .selected-icon { font-size: 25px; }
+    .selected-main small { display: block; color: var(--muted); font-size: 9px; letter-spacing: .08em; }
+    .selected-main strong { display: block; margin: 3px 0; font-size: 13px; }
+    .selected-stats { display: flex; gap: 16px; }
+    .selected-stats span { text-align: right; }
+    .selected-stats small { display: block; color: var(--muted); font-size: 9px; }
+    .selected-stats b { display: block; margin-top: 3px; font-size: 11px; font-weight: 600; }
+    .sky-panel .section-head { align-items: flex-start; }
+    .sun-arc { width: 100%; height: 142px; margin-top: 15px; }
+    .sun-arc svg { width: 100%; height: 100%; }
+    .sun-path { fill: none; stroke: rgba(219,208,174,.35); stroke-width: 2; stroke-dasharray: 4 5; }
+    .sun-ground { stroke: rgba(189,213,231,.13); stroke-width: 1; }
+    .sun-orb { fill: #f3c77d; filter: drop-shadow(0 0 9px rgba(243,199,125,.65)); }
+    .sun-time-label { fill: #91a6b7; font-size: 10px; }
+    .sun-times { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sun-time-box { padding: 10px 11px; border: 1px solid var(--line); border-radius: 12px; background: rgba(5,16,26,.35); }
+    .sun-time-box small { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .09em; }
+    .sun-time-box strong { display: block; margin-top: 5px; font-size: 14px; }
+    .daylight-note { color: var(--muted); font-size: 10px; margin: 9px 0 16px; }
+    .moon-row { gap: 11px; border-top: 1px solid var(--line); padding-top: 14px; }
+    .moon-glyph { font-size: 31px; }
+    .moon-title { font-size: 12px; font-weight: 650; }
+    .moon-illum { color: var(--muted); font-size: 10px; margin-top: 4px; }
+    .moon-times { margin-left: auto; display: flex; gap: 12px; }
+    .moon-time { text-align: right; }
+    .moon-time small { display: block; color: var(--muted); font-size: 9px; }
+    .moon-time strong { display: block; margin-top: 4px; font-size: 11px; }
+    .moon-status { color: var(--muted2); font-size: 9px; margin-top: 10px; }
+    .forecast-panel { margin-top: 15px; }
+    .forecast-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 16px; }
+    .forecast-card { min-width: 0; text-align: center; padding: 13px 7px; border: 1px solid var(--line); border-radius: 14px; background: rgba(5,16,26,.37); }
+    .forecast-day { color: var(--muted); font-size: 10px; }
+    .forecast-icon { font-size: 24px; margin: 10px 0; }
+    .forecast-range { display: flex; justify-content: center; gap: 7px; font-size: 11px; }
+    .forecast-range .low { color: var(--muted); }
+    .forecast-rain { color: #92c9ff; font-size: 9px; margin-top: 9px; }
+    .forecast-wind { color: var(--muted); font-size: 9px; margin-top: 4px; }
+    .map-panel { margin-top: 15px; }
+    .map-head { align-items: flex-start; margin-bottom: 13px; }
+    .radar-controls { flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+    .radar-button { padding: 8px 10px; font-size: 10px; }
+    .radar-button.active { color: var(--cyan); border-color: rgba(126,228,223,.3); }
+    .radar-slider { width: 115px; accent-color: var(--cyan); }
+    .radar-time { color: var(--muted); min-width: 57px; font-size: 10px; text-align: right; }
+    #weatherMap { height: 350px; border: 1px solid var(--line); border-radius: 15px; overflow: hidden; background: #102332; }
+    .radar-foot { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 9px; margin-top: 10px; }
+    .leaflet-container { background: #102332; font: inherit; }
+    .leaflet-control-attribution { font-size: 9px !important; }
+    .leaflet-bar a { background: #102332 !important; color: #e8f2f8 !important; border-color: var(--line) !important; }
+    .aux-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 15px; margin-top: 15px; }
+    .air-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .air-number-row { display: flex; align-items: baseline; gap: 9px; margin-top: 20px; }
+    .air-number { font-size: 47px; font-weight: 350; letter-spacing: -.06em; }
+    .air-category { color: var(--mint); font-size: 12px; }
+    .aqi-track {
+      height: 8px;
+      background: linear-gradient(90deg,#7bd8a2 0 20%,#cbe17c 20% 40%,#f2bf70 40% 60%,#ee8f76 60% 80%,#bd81bf);
+      border-radius: 99px;
+      margin: 12px 0;
+      position: relative;
+    }
+    .aqi-marker { height: 14px; width: 3px; position: absolute; top: -3px; left: 0; background: white; box-shadow: 0 0 7px rgba(255,255,255,.8); }
+    .air-pollutants { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 14px; }
+    .air-pollutant { border: 1px solid var(--line); background: rgba(5,16,26,.36); padding: 10px; border-radius: 11px; }
+    .air-pollutant small { display: block; color: var(--muted); font-size: 9px; }
+    .air-pollutant strong { display: block; margin-top: 5px; font-size: 12px; }
+    .air-note { color: var(--muted2); font-size: 9px; margin-top: 12px; line-height: 1.5; }
+    .outlook-card { display: flex; align-items: center; gap: 18px; min-height: 120px; }
+    .outlook-icon { width: 55px; height: 55px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 18px; background: rgba(126,228,223,.09); font-size: 25px; }
+    .outlook-percent { color: var(--cyan); font-size: 34px; font-weight: 350; }
+    .outlook-title { font-size: 15px; font-weight: 650; }
+    .outlook-desc { color: var(--muted); font-size: 10px; margin-top: 7px; line-height: 1.5; }
+    .details-panel { margin-top: 15px; }
+    .details-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-top: 14px; }
+    .detail-item { border: 1px solid var(--line); background: rgba(5,16,26,.34); padding: 11px; border-radius: 12px; }
+    .detail-item small { display: block; color: var(--muted); font-size: 9px; }
+    .detail-item strong { display: block; margin-top: 6px; font-size: 12px; font-weight: 600; }
+    .disclaimer { color: var(--muted2); font-size: 10px; line-height: 1.65; padding: 18px 3px 0; }
+    .source-links { color: var(--muted); }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(1,7,12,.72);
+      backdrop-filter: blur(8px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .settings-modal {
+      width: min(520px, 100%);
+      max-height: 90vh;
+      overflow: auto;
+      padding: 23px;
+      background: #102234;
+      border: 1px solid var(--line);
+      border-radius: 21px;
+      box-shadow: 0 26px 90px rgba(0,0,0,.46);
+      transform: translateY(10px);
+      transition: transform .2s ease;
+    }
+    .modal-backdrop.open .settings-modal { transform: translateY(0); }
+    .modal-head { justify-content: space-between; margin-bottom: 8px; }
+    .modal-head h2 { margin: 0; font-family: Georgia,serif; font-weight: 500; }
+    .close-button { padding: 7px 10px; }
+    .settings-intro { color: var(--muted); font-size: 11px; line-height: 1.55; margin-bottom: 18px; }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .setting-label strong { display: block; font-size: 12px; font-weight: 600; }
+    .setting-label small { display: block; color: var(--muted); font-size: 10px; margin-top: 4px; }
+    .setting-control { min-width: 100px; padding: 8px 10px; }
+    .setting-toggle { accent-color: var(--cyan); width: 17px; height: 17px; }
+    .modal-done {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      color: #09202a;
+      font-weight: 750;
+      border: 0;
+      background: linear-gradient(135deg, #a9eee0, #eec77d);
+    }
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 1200;
+      width: min(360px, calc(100vw - 32px));
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid rgba(126,228,223,.32);
+      border-radius: 16px;
+      background: rgba(15,34,48,.97);
+      box-shadow: 0 15px 48px rgba(0,0,0,.4);
+      opacity: 0;
+      transform: translateY(18px);
+      pointer-events: none;
+      transition: .25s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast-icon { font-size: 20px; }
+    .toast-title { font-size: 12px; font-weight: 700; }
+    .toast-message { color: var(--muted); font-size: 10px; line-height: 1.45; margin-top: 4px; }
+    .loading-icon { display: inline-block; }
+    .loading .loading-icon { animation: spin .9s linear infinite; }
+    .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: .01ms !important;
+    }
+    @keyframes pulse { 50% { opacity: .45; box-shadow: 0 0 3px var(--mint); } }
+    @keyframes float { 50% { transform: translateY(-8px); } }
+    @keyframes halo { 50% { transform: scale(1.08); opacity: .7; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 1050px) {
+      .metric-grid { grid-template-columns: repeat(3,1fr); }
+      .main-grid { grid-template-columns: 1fr; }
+      .details-grid { grid-template-columns: repeat(4,1fr); }
+    }
+    @media (max-width: 720px) {
+      .app-shell { padding: 16px 14px 35px; }
+      .topbar { align-items: flex-start; gap: 10px; }
+      .brand { min-width: 0; }
+      .brand-sub { letter-spacing: .08em; font-size: 8px; }
+      .header-right { gap: 6px; }
+      .clock-chip { min-width: 84px; padding: 7px 8px; }
+      .clock-chip small { font-size: 9px; }
+      .hero-card { grid-template-columns: 1fr .68fr; padding: 23px 19px 17px; gap: 5px; }
+      .hero-visual { min-height: 170px; }
+      .weather-glyph { font-size: 79px; }
+      .art-halo { width: 130px; height: 130px; }
+      .hero-art { height: 180px; }
+      .hero-bottom { grid-template-columns: repeat(2,1fr); row-gap: 13px; }
+      .hero-bottom-item:nth-child(3) { border-left: 0; padding-left: 0; }
+      .section-title { align-items: flex-start; flex-direction: column; }
+      .metric-grid { grid-template-columns: repeat(2,1fr); }
+      .metric-card { min-height: 112px; padding: 13px; }
+      .forecast-grid { grid-template-columns: repeat(7, minmax(68px,1fr)); overflow-x: auto; padding-bottom: 5px; }
+      .forecast-card { min-width: 68px; }
+      .aux-grid { grid-template-columns: 1fr; }
+      .details-grid { grid-template-columns: repeat(2,1fr); }
+      .map-head { flex-direction: column; }
+      .radar-controls { justify-content: flex-start; }
+      #weatherMap { height: 300px; }
+      .selected-readout { align-items: flex-start; flex-direction: column; }
+      .selected-stats { width: 100%; justify-content: space-between; }
+      .selected-stats span { text-align: left; }
+      .moon-times { gap: 8px; }
+    }
+    @media (max-width: 430px) {
+      .header-right .clock-chip { display: none; }
+      .hero-card { grid-template-columns: 1fr; }
+      .hero-visual { position: absolute; right: 2px; top: 35px; width: 42%; opacity: .86; }
+      .hero-copy { z-index: 2; }
+      .hero-city { max-width: 65%; }
+      .hero-bottom { position: relative; z-index: 2; }
+      .toolbar { gap: 7px; }
+      .toolbar select { min-width: 120px; flex: 1; }
+      .toolbar-spacer { display: none; }
+      .last-updated { width: 100%; }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .sun-times { gap: 7px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">ম</div>
+        <div>
+          <div class="brand-name">MEGH</div>
+          <div class="brand-sub">WEATHER ATLAS · BANGLADESH</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="clock-chip">
+          <strong id="bdClock">--:--</strong>
+          <small id="bdDate">Bangladesh time</small>
+        </div>
+        <button class="icon-button" id="soundQuick" type="button" title="Toggle sound alerts">♪ Sound off</button>
+        <button class="icon-button" id="settingsBtn" type="button" title="Weather settings">⚙ Settings</button>
+      </div>
+    </header>
+
+    <section class="toolbar" aria-label="Location and display controls">
+      <select id="citySelect" aria-label="Choose a Bangladesh city"></select>
+      <div class="search-box">
+        <input id="citySearch" type="search" placeholder="Search a Bangladesh city or district" autocomplete="off">
+        <button id="searchBtn" type="button">Find</button>
+      </div>
+      <button class="tool-button" id="geoBtn" type="button">◎ My location</button>
+      <button class="tool-button" id="unitBtn" type="button">°C</button>
+      <button class="tool-button" id="windUnitBtn" type="button">km/h</button>
+      <button class="tool-button" id="refreshBtn" type="button"><span class="loading-icon">↻</span> Refresh</button>
+      <span class="toolbar-spacer"></span>
+      <span class="last-updated" id="lastUpdated">Waiting for weather data…</span>
+    </section>
+
+    <main>
+      <section class="hero-card panel" id="heroCard">
+        <div class="hero-copy">
+          <div class="live-pill"><span class="live-dot"></span> LIVE · MODEL CONDITIONS</div>
+          <p class="kicker">BANGLADESH WEATHER INTELLIGENCE</p>
+          <h1 class="hero-city" id="heroCity">Dhaka</h1>
+          <div class="hero-meta" id="heroMeta">Bangladesh</div>
+          <div class="temperature-row">
+            <span class="hero-temp" id="heroTemp">--</span>
+            <span class="hero-unit" id="heroUnit">°C</span>
+          </div>
+          <div class="hero-condition" id="heroCondition">Loading conditions…</div>
+          <div class="hero-feel" id="heroFeel">Feels like —</div>
+        </div>
+        <div class="hero-visual">
+          <div class="hero-art" id="heroArt">
+            <div class="art-halo"></div>
+            <div class="weather-glyph" id="heroGlyph">☁️</div>
+            <div class="art-caption" id="heroArtLabel">Forecast conditions</div>
+          </div>
+        </div>
+        <div class="hero-bottom">
+          <div class="hero-bottom-item"><span>Today’s high / low</span><strong id="heroRange">—</strong></div>
+          <div class="hero-bottom-item"><span>Sunrise</span><strong id="heroSunrise">—</strong></div>
+          <div class="hero-bottom-item"><span>Sunset</span><strong id="heroSunset">—</strong></div>
+          <div class="hero-bottom-item"><span>Rain chance · next hour</span><strong id="heroRain">—</strong></div>
+        </div>
+      </section>
+
+      <div class="section-title">
+        <div><p class="eyebrow">RIGHT NOW</p><h2>Weather at a glance</h2></div>
+        <div class="muted">Current conditions are model-based, not a live station reading.</div>
+      </div>
+
+      <section class="metric-grid" id="metricGrid"></section>
+
+      <div class="main-grid">
+        <section class="panel explorer">
+          <div class="section-head">
+            <div><p class="eyebrow">THE TIME MACHINE</p><h2>Weather, hour by hour</h2></div>
+            <div class="segmented">
+              <button class="seg-button" id="pastBtn" type="button">Past 24h</button>
+              <button class="seg-button active" id="nextBtn" type="button">Next 24h</button>
+            </div>
+          </div>
+          <div class="chart-head">
+            <div><div class="chart-caption" id="chartTitle">Temperature</div><div class="muted" id="chartUnits">—</div></div>
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-metric="temperature" type="button">Temp</button>
+              <button class="chart-tab" data-metric="rain" type="button">Rain</button>
+              <button class="chart-tab" data-metric="wind" type="button">Wind</button>
+            </div>
+          </div>
+          <div class="chart-box" id="chartBox" aria-label="Interactive hourly weather chart"></div>
+          <div class="hourly-strip" id="hourlyStrip"></div>
+          <div class="selected-readout" id="selectionReadout"></div>
+        </section>
+
+        <section class="panel sky-panel">
+          <div class="section-head">
+            <div><p class="eyebrow">SKY & ASTRONOMY</p><h2>Sun & moon</h2></div>
+            <span class="muted">Local time · Bangladesh</span>
+          </div>
+          <div class="sun-arc" id="sunArc"></div>
+          <div class="sun-times">
+            <div class="sun-time-box"><small>Sunrise</small><strong id="sunriseValue">—</strong></div>
+            <div class="sun-time-box"><small>Sunset</small><strong id="sunsetValue">—</strong></div>
+          </div>
+          <div class="daylight-note" id="daylightValue">Daylight duration: —</div>
+          <div class="moon-row">
+            <div class="moon-glyph" id="moonGlyph">🌙</div>
+            <div>
+              <div class="moon-title" id="moonPhase">Moon phase</div>
+              <div class="moon-illum" id="moonIllumination">Illumination —</div>
+            </div>
+            <div class="moon-times">
+              <div class="moon-time"><small>Moonrise</small><strong id="moonriseValue">Calculating…</strong></div>
+              <div class="moon-time"><small>Moonset</small><strong id="moonsetValue">Calculating…</strong></div>
+            </div>
+          </div>
+          <div class="moon-status" id="moonStatus">Astronomy calculations loading…</div>
+        </section>
+      </div>
+
+      <section class="panel forecast-panel">
+        <div class="section-head">
+          <div><p class="eyebrow">THE WEEK AHEAD</p><h2>7-day forecast</h2></div>
+          <span class="muted">Daily outlook · Bangladesh local time</span>
+        </div>
+        <div class="forecast-grid" id="forecastGrid"></div>
+      </section>
+
+      <section class="panel map-panel">
+        <div class="map-head">
+          <div><p class="eyebrow">PRECIPITATION RADAR</p><h2>Radar over Bangladesh</h2></div>
+          <div class="radar-controls">
+            <button class="radar-button active" id="radarToggle" type="button">Radar on</button>
+            <button class="radar-button" id="radarPlay" type="button">▶ Play</button>
+            <input class="radar-slider" id="radarSlider" type="range" min="0" max="0" value="0" aria-label="Radar time">
+            <span class="radar-time" id="radarTime">—</span>
+          </div>
+        </div>
+        <div id="weatherMap" aria-label="Interactive map"></div>
+        <div class="radar-foot">
+          <span id="radarStatus">Loading precipitation radar…</span>
+          <span>Map © OpenStreetMap · Radar © RainViewer</span>
+        </div>
+      </section>
+
+      <div class="aux-grid">
+        <section class="panel air-panel">
+          <div class="air-head">
+            <div><p class="eyebrow">AIR QUALITY</p><h2 style="margin:0;font:500 21px Georgia,serif">Air around you</h2></div>
+            <span class="pill muted" style="font-size:9px;padding:6px 9px">US AQI</span>
+          </div>
+          <div class="air-number-row"><span class="air-number" id="airValue">—</span><span class="air-category" id="airCategory">Loading</span></div>
+          <div class="aqi-track"><div class="aqi-marker" id="aqiMarker"></div></div>
+          <div class="air-pollutants">
+            <div class="air-pollutant"><small>PM2.5</small><strong id="pm25Value">—</strong></div>
+            <div class="air-pollutant"><small>PM10</small><strong id="pm10Value">—</strong></div>
+            <div class="air-pollutant"><small>Ozone</small><strong id="ozoneValue">—</strong></div>
+          </div>
+          <div class="air-note" id="airModelTime">Model estimate · not a ground-station reading.</div>
+        </section>
+
+        <section class="panel outlook-panel">
+          <div class="air-head">
+            <div><p class="eyebrow">SHORT-TERM OUTLOOK</p><h2 style="margin:0;font:500 21px Georgia,serif">Rain watch</h2></div>
+            <span class="pill muted" style="font-size:9px;padding:6px 9px">NEXT 6 HOURS</span>
+          </div>
+          <div class="outlook-card">
+            <div class="outlook-icon">🌧️</div>
+            <div>
+              <div class="outlook-percent" id="rainChanceValue">—</div>
+              <div class="outlook-title" id="outlookTitle">Checking forecast…</div>
+              <div class="outlook-desc" id="outlookDesc">Forecast guidance, not an official warning.</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel details-panel">
+        <div class="section-head">
+          <div><p class="eyebrow">ATMOSPHERE & DETAIL</p><h2>More weather settings</h2></div>
+          <span class="muted">Select a time above to explore the hourly conditions.</span>
+        </div>
+        <div class="details-grid" id="detailsGrid"></div>
+      </section>
+    </main>
+
+    <footer class="disclaimer">
+      <strong>Important:</strong> MEGH is an independent weather dashboard, not an official Bangladesh Meteorological Department (BMD) service. Forecasts and “current” conditions are model guidance and can be wrong, especially during cyclones, severe storms, or rapidly changing monsoon weather. Follow <strong>BMD</strong> and local authorities for official warnings.
+      <div class="source-links">Data credits: Open-Meteo weather and air-quality APIs · US Naval Observatory astronomical calculations · RainViewer radar · OpenStreetMap contributors. Radar availability and coverage can vary.</div>
+    </footer>
+  </div>
+
+  <div class="modal-backdrop" id="settingsModal" aria-hidden="true">
+    <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-head"><h2 id="settingsTitle">Weather settings</h2><button class="close-button" id="closeSettings" type="button" aria-label="Close">✕</button></div>
+      <div class="settings-intro">Tune the dashboard to your preference. Changes are saved on this device.</div>
+      <div class="setting-row"><div class="setting-label"><strong>Temperature</strong><small>Celsius or Fahrenheit</small></div>
+        <select class="setting-control" id="settingTemp"><option value="C">°C</option><option value="F">°F</option></select></div>
+      <div class="setting-row"><div class="setting-label"><strong>Wind speed</strong><small>Display unit</small></div>
+        <select class="setting-control" id="settingWind"><option value="km/h">km/h</option><option value="mph">mph</option></select></div>
+      <div class="setting-row"><div class="setting-label"><strong>Pressure</strong><small>Display unit</small></div>
+        <select class="setting-control" id="settingPressure"><option value="hPa">hPa</option><option value="inHg">inHg</option></select></div>
+      <div class="setting-row"><div class="setting-label"><strong>Precipitation</strong><small>Display unit</small></div>
+        <select class="setting-control" id="settingPrecip"><option value="mm">mm</option><option value="in">in</option></select></div>
+      <div class="setting-row"><div class="setting-label"><strong>Automatic refresh</strong><small>Weather data refresh interval</small></div>
+        <select class="setting-control" id="settingRefresh"><option value="0">Off</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option></select></div>
+      <div class="setting-row"><div class="setting-label"><strong>In-app weather advisories</strong><small>Forecast heads-ups while the app is open</small></div><input class="setting-toggle" type="checkbox" id="settingAlerts"></div>
+      <div class="setting-row"><div class="setting-label"><strong>Sound for advisories</strong><small>Quiet by default; only plays after you enable it</small></div><input class="setting-toggle" type="checkbox" id="settingSound"></div>
+      <div class="setting-row"><div class="setting-label"><strong>Reduce animation</strong><small>Use fewer interface animations</small></div><input class="setting-toggle" type="checkbox" id="settingMotion"></div>
+      <button class="modal-done" id="doneSettings" type="button">Done</button>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span class="toast-icon" id="toastIcon">✦</span>
+    <div><div class="toast-title" id="toastTitle"></div><div class="toast-message" id="toastMessage"></div></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  (() => {
+    "use strict";
+    const TZ = "Asia/Dhaka";
+    const $ = id => document.getElementById(id);
+
+    const BD_CITIES = [
+      {key:"dhaka",name:"Dhaka",admin1:"Dhaka Division",lat:23.8103,lon:90.4125},
+      {key:"chattogram",name:"Chattogram",admin1:"Chattogram Division",lat:22.3569,lon:91.7832},
+      {key:"sylhet",name:"Sylhet",admin1:"Sylhet Division",lat:24.8949,lon:91.8687},
+      {key:"rajshahi",name:"Rajshahi",admin1:"Rajshahi Division",lat:24.3745,lon:88.6042},
+      {key:"khulna",name:"Khulna",admin1:"Khulna Division",lat:22.8456,lon:89.5403},
+      {key:"barishal",name:"Barishal",admin1:"Barishal Division",lat:22.7010,lon:90.3535},
+      {key:"rangpur",name:"Rangpur",admin1:"Rangpur Division",lat:25.7439,lon:89.2752},
+      {key:"mymensingh",name:"Mymensingh",admin1:"Mymensingh Division",lat:24.7471,lon:90.4203},
+      {key:"coxsbazar",name:"Cox's Bazar",admin1:"Chattogram Division",lat:21.4272,lon:92.0058},
+      {key:"cumilla",name:"Cumilla",admin1:"Chattogram Division",lat:23.4607,lon:91.1809},
+      {key:"gazipur",name:"Gazipur",admin1:"Dhaka Division",lat:24.0023,lon:90.4264},
+      {key:"narayanganj",name:"Narayanganj",admin1:"Dhaka Division",lat:23.6238,lon:90.4990},
+      {key:"bogura",name:"Bogura",admin1:"Rajshahi Division",lat:24.8465,lon:89.3773},
+      {key:"jashore",name:"Jashore",admin1:"Khulna Division",lat:23.1697,lon:89.2137},
+      {key:"dinajpur",name:"Dinajpur",admin1:"Rangpur Division",lat:25.6279,lon:88.6332},
+      {key:"bandarban",name:"Bandarban",admin1:"Chattogram Division",lat:22.1953,lon:92.2184},
+      {key:"rangamati",name:"Rangamati",admin1:"Chattogram Division",lat:22.7324,lon:92.2985},
+      {key:"feni",name:"Feni",admin1:"Chattogram Division",lat:23.0159,lon:91.3976},
+      {key:"noakhali",name:"Noakhali",admin1:"Chattogram Division",lat:22.8696,lon:91.0995},
+      {key:"pabna",name:"Pabna",admin1:"Rajshahi Division",lat:24.0064,lon:89.2372},
+      {key:"tangail",name:"Tangail",admin1:"Dhaka Division",lat:24.2513,lon:89.9167},
+      {key:"kuakata",name:"Kuakata",admin1:"Barishal Division",lat:21.8167,lon:90.1167},
+      {key:"satkhira",name:"Satkhira",admin1:"Khulna Division",lat:22.7185,lon:89.0705},
+      {key:"bhola",name:"Bhola",admin1:"Barishal Division",lat:22.6859,lon:90.6482},
+      {key:"teknaf",name:"Teknaf",admin1:"Chattogram Division",lat:20.8667,lon:92.3000},
+      {key:"srimangal",name:"Srimangal",admin1:"Sylhet Division",lat:24.3065,lon:91.7296}
+    ];
+
+    const DEFAULT_SETTINGS = {
+      tempUnit:"C", windUnit:"km/h", pressureUnit:"hPa", precipUnit:"mm",
+      refreshMinutes:30, alerts:true, sound:false, reduceMotion:false
+    };
+
+    function readStorage(key) {
+      try { return JSON.parse(localStorage.getItem(key) || "null"); }
+      catch (_) { return null; }
+    }
+
+    function inBangladesh(loc) {
+      return loc && Number.isFinite(Number(loc.lat)) && Number.isFinite(Number(loc.lon)) &&
+        Number(loc.lat) >= 20.3 && Number(loc.lat) <= 26.9 &&
+        Number(loc.lon) >= 87.8 && Number(loc.lon) <= 93.0;
+    }
+
+    const savedSettings = readStorage("megh.settings") || {};
+    const savedLocation = readStorage("megh.location");
+
+    const state = {
+      settings:{...DEFAULT_SETTINGS,...savedSettings},
+      location:inBangladesh(savedLocation) ? savedLocation : BD_CITIES[0],
+      weather:null, air:null, moon:null, fetchedAt:null,
+      mode:"next", chartMetric:"temperature", selectedHourIndex:null,
+      locations:new Map(), requestId:0,
+      map:null, marker:null, radarLayer:null, radarFrames:[], radarHost:"",
+      radarIndex:0, radarEnabled:true, radarTimer:null, toastTimer:null, lastAlertKey:""
+    };
+
+    BD_CITIES.forEach(city => state.locations.set(city.key, city));
+
+    const valid = v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+    const clamp = (n,min,max) => Math.max(min,Math.min(max,n));
+    const fmtNum = (v,d=0) => valid(v) ? Number(v).toFixed(d) : "—";
+    const tempValue = c => state.settings.tempUnit === "F" ? Number(c) * 9/5 + 32 : Number(c);
+
+    function formatTemp(c) { return valid(c) ? `${Math.round(tempValue(c))}°${state.settings.tempUnit}` : "—"; }
+    function windValue(kmh) { return state.settings.windUnit === "mph" ? Number(kmh) * 0.621371 : Number(kmh); }
+    function formatWind(kmh) { return valid(kmh) ? `${Math.round(windValue(kmh))} ${state.settings.windUnit}` : "—"; }
+    function formatPressure(hpa) {
+      if (!valid(hpa)) return "—";
+      return state.settings.pressureUnit === "inHg" ? `${(Number(hpa)*0.029529983).toFixed(2)} inHg` : `${Math.round(Number(hpa))} hPa`;
+    }
+    function formatRain(mm) {
+      if (!valid(mm)) return "—";
+      return state.settings.precipUnit === "in" ? `${(Number(mm)*0.0393701).toFixed(2)} in` : `${Number(mm) < 10 ? Number(mm).toFixed(1) : Math.round(Number(mm))} mm`;
+    }
+    function formatPercent(n) { return valid(n) ? `${Math.round(Number(n))}%` : "—"; }
+
+    function parseDhakaTime(value) {
+      if (!value) return new Date();
+      const [date,time="00:00:00"] = String(value).split("T");
+      const parts = date.split("-").map(Number);
+      if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return new Date();
+      const t = time.split(":").map(Number);
+      return new Date(Date.UTC(parts[0],parts[1]-1,parts[2],(t[0]||0)-6,t[1]||0,t[2]||0));
+    }
+
+    function formatClock(value) {
+      if (!value) return "—";
+      return new Intl.DateTimeFormat("en-BD",{hour:"numeric",minute:"2-digit",timeZone:TZ}).format(parseDhakaTime(value));
+    }
+
+    function formatDay(value, opts={weekday:"short",day:"numeric",month:"short"}) {
+      return new Intl.DateTimeFormat("en-BD",{...opts,timeZone:TZ}).format(parseDhakaTime(`${value}T12:00`));
+    }
+
+    function timeMinutes(value) {
+      if (!value) return 0;
+      const part = String(value).split("T").pop().slice(0,5).split(":").map(Number);
+      return (part[0]||0)*60 + (part[1]||0);
+    }
+
+    function formatDuration(seconds) {
+      if (!valid(seconds)) return "—";
+      const mins = Math.round(Number(seconds)/60);
+      return `${Math.floor(mins/60)}h ${mins%60}m`;
+    }
+
+    function formatVisibility(metres) {
+      if (!valid(metres)) return "—";
+      return Number(metres) >= 1000 ? `${(Number(metres)/1000).toFixed(1)} km` : `${Math.round(Number(metres))} m`;
+    }
+
+    function directionName(degrees) {
+      if (!valid(degrees)) return "—";
+      const directions = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+      return directions[Math.round((Number(degrees)%360)/22.5)%16];
+    }
+
+    function weatherLabel(code) {
+      const c = Number(code);
+      if (c===0) return "Clear sky";
+      if (c===1) return "Mainly clear";
+      if (c===2) return "Partly cloudy";
+      if (c===3) return "Overcast";
+      if (c===45 || c===48) return "Fog";
+      if ([51,53,55,56,57].includes(c)) return "Drizzle";
+      if ([61,63,65,66,67].includes(c)) return "Rain";
+      if ([71,73,75,77,85,86].includes(c)) return "Snow";
+      if ([80,81,82].includes(c)) return "Rain showers";
+      if ([95,96,99].includes(c)) return "Thunderstorm";
+      return "Weather conditions";
+    }
+
+    function weatherIcon(code,isDay=true) {
+      const c = Number(code);
+      if (c===0) return isDay ? "☀️" : "🌙";
+      if (c===1) return isDay ? "🌤️" : "☁️";
+      if (c===2) return "⛅";
+      if (c===3) return "☁️";
+      if (c===45 || c===48) return "🌫️";
+      if ([51,53,55,56,57].includes(c)) return "🌦️";
+      if ([61,63,65,66,67,80,81,82].includes(c)) return "🌧️";
+      if ([71,73,75,77,85,86].includes(c)) return "❄️";
+      if ([95,96,99].includes(c)) return "⛈️";
+      return "☁️";
+    }
+
+    function weatherKind(code) {
+      const c=Number(code);
+      if ([95,96,99].includes(c)) return "storm";
+      if ([51,53,55,56,57,61,63,65,66,67,80,81,82].includes(c)) return "rain";
+      if ([45,48,3].includes(c)) return "cloud";
+      return "clear";
+    }
+
+    function currentDateKey() { return state.weather?.current?.time ? state.weather.current.time.slice(0,10) : ""; }
+    function todayIndex() {
+      const times=state.weather?.daily?.time || [];
+      const idx=times.indexOf(currentDateKey());
+      return idx>=0 ? idx : 0;
+    }
+
+    function nearestIndex(times,target) {
+      if (!times || !times.length) return 0;
+      const goal=parseDhakaTime(target).getTime();
+      let best=0,dist=Infinity;
+      times.forEach((t,i) => {
+        const d=Math.abs(parseDhakaTime(t).getTime()-goal);
+        if(d<dist){dist=d;best=i;}
+      });
+      return best;
+    }
+
+    function currentHourIndex() {
+      const times=state.weather?.hourly?.time || [];
+      return nearestIndex(times,state.weather?.current?.time);
+    }
+
+    function timeIndices() {
+      const times=state.weather?.hourly?.time || [];
+      if (!times.length) return [];
+      const now=currentHourIndex();
+      const start=state.mode==="past" ? Math.max(0,now-23) : now;
+      const end=state.mode==="past" ? now : Math.min(times.length-1,now+23);
+      return Array.from({length:end-start+1},(_,i)=>start+i);
+    }
+
+    function registerLocation(loc) {
+      const key=loc.key || `place-${Number(loc.lat).toFixed(4)}-${Number(loc.lon).toFixed(4)}`;
+      loc.key=key;
+      if (!state.locations.has(key)) {
+        state.locations.set(key,loc);
+        const option=document.createElement("option");
+        option.value=key;
+        option.textContent=loc.name + (loc.admin1 ? ` · ${loc.admin1}` : "");
+        $("citySelect").appendChild(option);
+      }
+      $("citySelect").value=key;
+      return loc;
+    }
+
+    function saveLocation(loc) {
+      try { localStorage.setItem("megh.location",JSON.stringify(loc)); } catch (_) {}
+    }
+
+    function selectLocation(loc) {
+      if (!inBangladesh(loc)) {
+        showToast("Bangladesh only","Choose a location within Bangladesh for this weather atlas.");
+        return;
+      }
+      loc=registerLocation({...loc});
+      state.location=loc;
+      saveLocation(loc);
+      updateMapLocation();
+      loadWeather(loc,false);
+    }
+
+    function setLoading(on) { $("refreshBtn").classList.toggle("loading",on); }
+
+    async function fetchJSON(url) {
+      const response=await fetch(url,{headers:{Accept:"application/json"}});
+      if (!response.ok) throw new Error(`Request failed (${response.status})`);
+      const data=await response.json();
+      if (data && data.error) throw new Error(data.reason || "Data provider returned an error");
+      return data;
+    }
+
+    function weatherURL(loc) {
+      const p=new URLSearchParams({
+        latitude:String(loc.lat),longitude:String(loc.lon),timezone:TZ,
+        past_days:"2",forecast_days:"7",temperature_unit:"celsius",
+        wind_speed_unit:"kmh",precipitation_unit:"mm",
+        current:[
+          "temperature_2m","relative_humidity_2m","apparent_temperature","is_day",
+          "precipitation","rain","showers","weather_code","cloud_cover","pressure_msl",
+          "surface_pressure","wind_speed_10m","wind_direction_10m","wind_gusts_10m"
+        ].join(","),
+        hourly:[
+          "temperature_2m","relative_humidity_2m","dew_point_2m","apparent_temperature",
+          "precipitation_probability","precipitation","rain","showers","weather_code",
+          "cloud_cover","cloud_cover_low","cloud_cover_mid","cloud_cover_high",
+          "pressure_msl","surface_pressure","visibility","wind_speed_10m","wind_direction_10m",
+          "wind_gusts_10m","uv_index","shortwave_radiation","is_day"
+        ].join(","),
+        daily:[
+          "weather_code","temperature_2m_max","temperature_2m_min","sunrise","sunset",
+          "daylight_duration","sunshine_duration","uv_index_max","precipitation_sum",
+          "rain_sum","showers_sum","precipitation_probability_max","wind_speed_10m_max",
+          "wind_gusts_10m_max","wind_direction_10m_dominant"
+        ].join(",")
+      });
+      return `https://api.open-meteo.com/v1/forecast?${p}`;
+    }
+
+    function airURL(loc) {
+      const p=new URLSearchParams({
+        latitude:String(loc.lat),longitude:String(loc.lon),timezone:TZ,forecast_days:"2",
+        current:"us_aqi,pm2_5,pm10,ozone",hourly:"us_aqi,pm2_5,pm10"
+      });
+      return `https://air-quality-api.open-meteo.com/v1/air-quality?${p}`;
+    }
+
+    async function moonTimes(loc,dateKey) {
+      const [year,month,day]=dateKey.split("-").map(Number);
+      const p=new URLSearchParams({
+        date:`${month}/${day}/${year}`,
+        coords:`${loc.lat},${loc.lon}`,
+        tz:"6",dst:"false"
+      });
+      const data=await fetchJSON(`https://api.usno.navy.mil/rstt/oneday?${p}`);
+      const rows=Array.isArray(data.moondata) ? data.moondata : [];
+      const rise=rows.find(x=>x.phen==="R" || x.phen==="Rise");
+      const set=rows.find(x=>x.phen==="S" || x.phen==="Set");
+      return {rise:rise?.time || null,set:set?.time || null,error:false};
+    }
+
+    async function loadWeather(loc=state.location,quiet=false) {
+      const request=++state.requestId;
+      state.location=loc;
+      setLoading(true);
+      state.air=null;
+      state.moon={loading:true};
+      try {
+        const data=await fetchJSON(weatherURL(loc));
+        if(request!==state.requestId) return;
+        state.weather=data;
+        state.fetchedAt=new Date();
+        state.selectedHourIndex=null;
+        renderAll();
+        updateMapLocation();
+        loadSupplemental(loc,data,request);
+        checkAdvisory();
+      } catch (error) {
+        if(request===state.requestId && !quiet) {
+          showToast("Weather data unavailable",error.message || "Check your connection and try again.");
+        }
+      } finally {
+        if(request===state.requestId) setLoading(false);
+      }
+    }
+
+    async function loadSupplemental(loc,data,request) {
+      const dateKey=data?.current?.time?.slice(0,10);
+      const [airResult,moonResult]=await Promise.allSettled([
+        fetchJSON(airURL(loc)),
+        dateKey ? moonTimes(loc,dateKey) : Promise.reject(new Error("No local date"))
+      ]);
+      if(request!==state.requestId) return;
+      state.air=airResult.status==="fulfilled" ? airResult.value : null;
+      state.moon=moonResult.status==="fulfilled" ? moonResult.value : {error:true};
+      renderAir();
+      renderSunMoon();
+    }
+
+    function tickClock() {
+  const now = new Date();
+
+  $("bdClock").textContent = new Intl.DateTimeFormat("en-BD", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: TZ
+  }).format(now);
+
+  $("bdDate").textContent = new Intl.DateTimeFormat("en-BD", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: TZ
+  }).format(now);
+    }
+
+    function renderHero() {
+      const w=state.weather, c=w.current, d=w.daily, di=todayIndex();
+      const code=c.weather_code;
+      const isDay=Number(c.is_day)!==0;
+      $("heroCity").textContent=state.location.name || "Bangladesh";
+      $("heroMeta").textContent=`${state.location.admin1 ? state.location.admin1+" · " : ""}Bangladesh · ${Number(state.location.lat).toFixed(2)}° N, ${Number(state.location.lon).toFixed(2)}° E`;
+      $("heroTemp").textContent=valid(c.temperature_2m) ? Math.round(tempValue(c.temperature_2m)) : "—";
+      $("heroUnit").textContent=`°${state.settings.tempUnit}`;
+      $("heroCondition").textContent=weatherLabel(code);
+      $("heroFeel").textContent=`Feels like ${formatTemp(c.apparent_temperature)}`;
+      $("heroRange").textContent=`${formatTemp(d.temperature_2m_max?.[di])} / ${formatTemp(d.temperature_2m_min?.[di])}`;
+      $("heroSunrise").textContent=formatClock(d.sunrise?.[di]);
+      $("heroSunset").textContent=formatClock(d.sunset?.[di]);
+      const hi=currentHourIndex(), p=w.hourly.precipitation_probability?.[hi];
+      $("heroRain").textContent=valid(p) ? `${Math.round(p)}%` : "—";
+      $("heroGlyph").textContent=weatherIcon(code,isDay);
+      $("heroArtLabel").textContent=weatherLabel(code);
+      $("heroArt").className=`hero-art ${weatherKind(code)}`;
+      $("heroCard").classList.toggle("night-mode",!isDay);
+      tickClock();
+      $("lastUpdated").textContent=state.fetchedAt ? `Fetched ${new Intl.DateTimeFormat("en-BD",{hour:"numeric",minute:"2-digit",timeZone:TZ}).format(state.fetchedAt)} · Asia/Dhaka` : "Waiting for weather data…";
+    }
+
+    function renderMetrics() {
+      const w=state.weather, c=w.current, h=w.hourly, i=currentHourIndex();
+      const gust=c.wind_gusts_10m;
+      const items=[
+        {icon:"〰",label:"Wind",value:formatWind(c.wind_speed_10m),note:`${directionName(c.wind_direction_10m)} · gust ${formatWind(gust)}`},
+        {icon:"◌",label:"Humidity",value:formatPercent(c.relative_humidity_2m),note:`Dew point ${formatTemp(h.dew_point_2m?.[i])}`},
+        {icon:"💧",label:"Precipitation",value:formatRain(c.precipitation),note:`Rain ${formatRain(c.rain)} · next hour ${formatPercent(h.precipitation_probability?.[i])}`},
+        {icon:"⌁",label:"Sea-level pressure",value:formatPressure(c.pressure_msl),note:`Surface ${formatPressure(c.surface_pressure)}`},
+        {icon:"☁",label:"Cloud cover",value:formatPercent(c.cloud_cover),note:`Low ${formatPercent(h.cloud_cover_low?.[i])} · high ${formatPercent(h.cloud_cover_high?.[i])}`},
+        {icon:"☼",label:"UV index",value:valid(h.uv_index?.[i]) ? Number(h.uv_index[i]).toFixed(1) : "—",note:`Today’s max ${valid(w.daily.uv_index_max?.[todayIndex()]) ? Number(w.daily.uv_index_max[todayIndex()]).toFixed(1) : "—"}`}
+      ];
+      $("metricGrid").innerHTML=items.map(x=>`<article class="panel metric-card">
+        <div class="metric-head"><span>${x.label}</span><span class="metric-icon">${x.icon}</span></div>
+        <div class="metric-value">${x.value}</div><div class="metric-note">${x.note}</div>
+      </article>`).join("");
+    }
+
+    function renderDetails() {
+      const w=state.weather, c=w.current, h=w.hourly, i=currentHourIndex();
+      const items=[
+        ["Feels like",formatTemp(c.apparent_temperature)],
+        ["Dew point",formatTemp(h.dew_point_2m?.[i])],
+        ["Visibility",formatVisibility(h.visibility?.[i])],
+        ["Wind gusts",formatWind(c.wind_gusts_10m)],
+        ["Rain this hour",formatRain(c.rain)],
+        ["Showers this hour",formatRain(c.showers)],
+        ["Low cloud",formatPercent(h.cloud_cover_low?.[i])],
+        ["Mid cloud",formatPercent(h.cloud_cover_mid?.[i])],
+        ["High cloud",formatPercent(h.cloud_cover_high?.[i])],
+        ["Solar radiation",valid(h.shortwave_radiation?.[i]) ? `${Math.round(h.shortwave_radiation[i])} W/m²` : "—"]
+      ];
+      $("detailsGrid").innerHTML=items.map(([label,value])=>`<div class="detail-item"><small>${label}</small><strong>${value}</strong></div>`).join("");
+    }
+
+    function renderHourly() {
+      const w=state.weather, h=w.hourly, indices=timeIndices(), now=currentHourIndex();
+      if(!indices.length) return;
+      if(state.selectedHourIndex===null || !indices.includes(state.selectedHourIndex)) state.selectedHourIndex=now;
+      $("pastBtn").classList.toggle("active",state.mode==="past");
+      $("nextBtn").classList.toggle("active",state.mode==="next");
+      $("hourlyStrip").innerHTML=indices.map(i=>{
+        const isNow=i===now;
+        const label=isNow ? "NOW" : formatClock(h.time[i]);
+        const p=h.precipitation_probability?.[i];
+        return `<button class="hour-card ${i===state.selectedHourIndex?"active":""}" data-hour-index="${i}" type="button" aria-label="${label}, ${formatTemp(h.temperature_2m?.[i])}, ${weatherLabel(h.weather_code?.[i])}">
+          <span class="hour-time">${label}</span>
+          <span class="hour-icon">${weatherIcon(h.weather_code?.[i],Number(h.is_day?.[i])!==0)}</span>
+          <span class="hour-temp">${formatTemp(h.temperature_2m?.[i])}</span>
+          <span class="hour-rain">💧 ${valid(p)?Math.round(p)+"%":"—"}</span>
+        </button>`;
+      }).join("");
+      renderSelectedReadout();
+    }
+
+    function renderSelectedReadout() {
+      const w=state.weather, h=w.hourly, i=state.selectedHourIndex;
+      if(!valid(i) || !h.time?.[i]) return;
+      const title=i===currentHourIndex() ? "Latest model hour" : formatDay(h.time[i].slice(0,10),{weekday:"long",day:"numeric",month:"short"})+" · "+formatClock(h.time[i]);
+      const code=h.weather_code?.[i], day=Number(h.is_day?.[i])!==0;
+      $("selectionReadout").innerHTML=`
+        <div class="selected-main"><span class="selected-icon">${weatherIcon(code,day)}</span>
+          <div><small>SELECTED TIME</small><strong>${title}</strong><small>${weatherLabel(code)}</small></div>
+        </div>
+        <div class="selected-stats">
+          <span><small>Temperature</small><b>${formatTemp(h.temperature_2m?.[i])}</b></span>
+          <span><small>Wind</small><b>${formatWind(h.wind_speed_10m?.[i])} ${directionName(h.wind_direction_10m?.[i])}</b></span>
+          <span><small>Clouds</small><b>${formatPercent(h.cloud_cover?.[i])}</b></span>
+          <span><small>Rain chance</small><b>${formatPercent(h.precipitation_probability?.[i])}</b></span>
+        </div>`;
+    }
+
+    function chartValue(i) {
+      const h=state.weather.hourly;
+      if(state.chartMetric==="temperature") return valid(h.temperature_2m?.[i]) ? tempValue(h.temperature_2m[i]) : null;
+      if(state.chartMetric==="rain") return valid(h.precipitation?.[i]) ? Number(h.precipitation[i]) : null;
+      return valid(h.wind_speed_10m?.[i]) ? windValue(h.wind_speed_10m[i]) : null;
+    }
+
+    function renderChart() {
+      const indices=timeIndices();
+      if(!indices.length) return;
+      const metric=state.chartMetric;
+      const title=metric==="temperature"?"Temperature":metric==="rain"?"Hourly precipitation":"Wind speed";
+      const unit=metric==="temperature"?`°${state.settings.tempUnit}`:metric==="rain"?state.settings.precipUnit:state.settings.windUnit;
+      $("chartTitle").textContent=title;
+      $("chartUnits").textContent=`Tap the chart to select an hour · ${unit}`;
+      document.querySelectorAll(".chart-tab").forEach(b=>b.classList.toggle("active",b.dataset.metric===metric));
+      const W=720,H=190,L=42,R=12,T=12,B=26;
+      const values=indices.map(chartValue);
+      let nums=values.filter(v=>v!==null && Number.isFinite(v));
+      if(!nums.length){$("chartBox").innerHTML="";return;}
+      let min=metric==="rain"?0:Math.min(...nums), max=Math.max(...nums);
+      if(metric==="rain") max=Math.max(max,1);
+      else if(max===min){min-=1;max+=1;}
+      else {const pad=(max-min)*.13;min-=pad;max+=pad;}
+      const x=j=>L+(indices.length<=1?0:j*(W-L-R)/(indices.length-1));
+      const y=v=>T+(max-v)*(H-T-B)/(max-min);
+      const grid=[];
+      for(let k=0;k<=4;k++){
+        const val=max-(max-min)*k/4, yy=T+(H-T-B)*k/4;
+        grid.push(`<line class="chart-gridline" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"></line>
+          <text class="chart-label" x="${L-7}" y="${yy+3}" text-anchor="end">${val.toFixed(metric==="rain"?1:0)}</text>`);
+      }
+      let plot="";
+      if(metric==="rain"){
+        const base=y(0), barW=Math.max(3,Math.min(12,(W-L-R)/indices.length*.55));
+        plot=values.map((v,j)=>v===null?"":`<rect x="${x(j)-barW/2}" y="${y(v)}" width="${barW}" height="${Math.max(1,base-y(v))}" rx="3" fill="rgba(126,228,223,.68)"></rect>`).join("");
+      } else {
+        const pts=values.map((v,j)=>v===null?null:[x(j),y(v)]).filter(Boolean);
+        const path=pts.map((p,j)=>`${j?"L":"M"}${p[0]},${p[1]}`).join(" ");
+        const bottom=H-B;
+        const area=pts.length ? `${path} L${pts[pts.length-1][0]},${bottom} L${pts[0][0]},${bottom} Z` : "";
+        plot=`<path d="${area}" fill="url(#chartFill)"></path><path d="${path}" fill="none" stroke="#7ee4df" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+          ${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2.2" fill="#d9fffa"></circle>`).join("")}`;
+      }
+      const selectedJ=indices.indexOf(state.selectedHourIndex);
+      const selectedX=selectedJ>=0?x(selectedJ):null;
+      const selectedLine=selectedX!==null?`<line x1="${selectedX}" x2="${selectedX}" y1="${T}" y2="${H-B}" stroke="rgba(243,199,125,.72)" stroke-dasharray="3 4"></line>`:"";
+      const labels=indices.map((idx,j)=>{
+        if(j!==0 && j!==indices.length-1 && j%6!==0) return "";
+        const time=state.weather.hourly.time[idx];
+        const text=idx===currentHourIndex()?"Now":formatClock(time).replace(":00","");
+        return `<text class="chart-label" x="${x(j)}" y="${H-6}" text-anchor="middle">${text}</text>`;
+      }).join("");
+      $("chartBox").innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${title} over time">
+        <defs><linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7ee4df" stop-opacity=".24"></stop><stop offset="1" stop-color="#7ee4df" stop-opacity="0"></stop></linearGradient></defs>
+        ${grid.join("")}${plot}${selectedLine}${labels}
+        <rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent" data-chart-hit="1"></rect>
+      </svg>`;
+      const svg=$("chartBox").querySelector("svg");
+      svg.addEventListener("pointerdown",event=>{
+        const rect=svg.getBoundingClientRect();
+        const xPos=(event.clientX-rect.left)/rect.width*W;
+        const ratio=clamp((xPos-L)/(W-L-R),0,1);
+        const j=Math.round(ratio*(indices.length-1));
+        state.selectedHourIndex=indices[j];
+        renderHourly();
+        renderChart();
+      });
+    }
+
+    function renderForecast() {
+      const d=state.weather.daily, start=todayIndex(), end=Math.min(d.time.length,start+7);
+      const cards=[];
+      for(let i=start;i<end;i++){
+        const label=i===start?"Today":formatDay(d.time[i],{weekday:"short",day:"numeric",month:"short"});
+        cards.push(`<article class="forecast-card">
+          <div class="forecast-day">${label}</div>
+          <div class="forecast-icon">${weatherIcon(d.weather_code?.[i],true)}</div>
+          <div class="forecast-range"><span>${formatTemp(d.temperature_2m_max?.[i])}</span><span class="low">${formatTemp(d.temperature_2m_min?.[i])}</span></div>
+          <div class="forecast-rain">💧 ${formatPercent(d.precipitation_probability_max?.[i])}</div>
+          <div class="forecast-wind">Wind ${formatWind(d.wind_speed_10m_max?.[i])}</div>
+        </article>`);
+      }
+      $("forecastGrid").innerHTML=cards.join("");
+    }
+
+    function moonPhaseInfo(dateString) {
+      const date=parseDhakaTime(dateString || new Date().toISOString().slice(0,10)+"T12:00");
+      const known=Date.UTC(2000,0,6,18,14);
+      const cycle=29.530588853;
+      let phase=((date.getTime()-known)/86400000)%cycle;
+      if(phase<0) phase+=cycle;
+      const p=phase/cycle;
+      const illumination=Math.round((1-Math.cos(2*Math.PI*p))/2*100);
+      let name,icon;
+      if(p<.03 || p>.97){name="New Moon";icon="🌑";}
+      else if(p<.22){name="Waxing Crescent";icon="🌒";}
+      else if(p<.28){name="First Quarter";icon="🌓";}
+      else if(p<.47){name="Waxing Gibbous";icon="🌔";}
+      else if(p<.53){name="Full Moon";icon="🌕";}
+      else if(p<.72){name="Waning Gibbous";icon="🌖";}
+      else if(p<.78){name="Last Quarter";icon="🌗";}
+      else {name="Waning Crescent";icon="🌘";}
+      return {name,icon,illumination};
+    }
+
+    function formatUSNOTime(value) {
+      if(!value || value==="--:--") return "No event today";
+      const parts=value.split(":").map(Number);
+      if(parts.length<2 || !Number.isFinite(parts[0])) return value;
+      const h=parts[0], m=String(parts[1]).padStart(2,"0");
+      return `${h%12||12}:${m} ${h>=12?"PM":"AM"}`;
+    }
+
+    function renderSunMoon() {
+      if(!state.weather) return;
+      const w=state.weather,d=w.daily,di=todayIndex();
+      const sunrise=d.sunrise?.[di], sunset=d.sunset?.[di];
+      $("sunriseValue").textContent=formatClock(sunrise);
+      $("sunsetValue").textContent=formatClock(sunset);
+      $("daylightValue").textContent=`Daylight duration: ${formatDuration(d.daylight_duration?.[di])} · Sunshine ${formatDuration(d.sunshine_duration?.[di])}`;
+      const riseM=timeMinutes(sunrise), setM=timeMinutes(sunset), nowM=timeMinutes(w.current.time);
+      const progress=clamp((nowM-riseM)/Math.max(1,setM-riseM),0,1);
+      const sx=20+280*progress, sy=99-78*Math.sin(progress*Math.PI);
+      $("sunArc").innerHTML=`<svg viewBox="0 0 320 130" role="img" aria-label="Sun path from sunrise to sunset">
+        <path class="sun-path" d="M20 100 C75 -2,245 -2,300 100"></path>
+        <line class="sun-ground" x1="16" x2="304" y1="101" y2="101"></line>
+        <circle class="sun-orb" cx="${sx}" cy="${sy}" r="8"></circle>
+        <text class="sun-time-label" x="18" y="121">Sunrise</text>
+        <text class="sun-time-label" x="302" y="121" text-anchor="end">Sunset</text>
+      </svg>`;
+      const phase=moonPhaseInfo(w.current.time);
+      $("moonGlyph").textContent=phase.icon;
+      $("moonPhase").textContent=phase.name;
+      $("moonIllumination").textContent=`${phase.illumination}% illuminated`;
+      if(state.moon?.loading){
+        $("moonriseValue").textContent="Calculating…";
+        $("moonsetValue").textContent="Calculating…";
+        $("moonStatus").textContent="Requesting astronomical timings for this location.";
+      } else if(state.moon?.error){
+        $("moonriseValue").textContent="Unavailable";
+        $("moonsetValue").textContent="Unavailable";
+        $("moonStatus").textContent="Moon phase is calculated locally; moonrise/set service is unavailable.";
+      } else if(state.moon){
+        $("moonriseValue").textContent=formatUSNOTime(state.moon.rise);
+        $("moonsetValue").textContent=formatUSNOTime(state.moon.set);
+        $("moonStatus").textContent="Moonrise/set timings from the US Naval Observatory service.";
+      }
+    }
+
+    function aqiCategory(value) {
+      const n=Number(value);
+      if(n<=50) return ["Good","#8ce4ba"];
+      if(n<=100) return ["Moderate","#c9df82"];
+      if(n<=150) return ["Sensitive groups","#f2bf70"];
+      if(n<=200) return ["Unhealthy","#ee8f76"];
+      if(n<=300) return ["Very unhealthy","#c77fba"];
+      return ["Hazardous","#dc6572"];
+    }
+
+    function airValue(name) {
+      const a=state.air;
+      if(!a) return null;
+      const c=a.current || {};
+      if(valid(c[name])) return c[name];
+      const i=nearestIndex(a.hourly?.time || [],state.weather?.current?.time);
+      return a.hourly?.[name]?.[i] ?? null;
+    }
+
+    function renderAir() {
+      const aqi=airValue("us_aqi");
+      if(!valid(aqi)){
+        $("airValue").textContent="—";
+        $("airCategory").textContent="Unavailable";
+        $("pm25Value").textContent="—";
+        $("pm10Value").textContent="—";
+        $("ozoneValue").textContent="—";
+        $("aqiMarker").style.left="0%";
+        $("airModelTime").textContent="Air-quality model feed unavailable right now.";
+        return;
+      }
+      const [label,color]=aqiCategory(aqi);
+      $("airValue").textContent=Math.round(aqi);
+      $("airCategory").textContent=label;
+      $("airCategory").style.color=color;
+      $("aqiMarker").style.left=`${clamp(Number(aqi)/300*100,0,100)}%`;
+      $("pm25Value").textContent=valid(airValue("pm2_5"))?`${Number(airValue("pm2_5")).toFixed(1)} µg/m³`:"—";
+      $("pm10Value").textContent=valid(airValue("pm10"))?`${Number(airValue("pm10")).toFixed(1)} µg/m³`:"—";
+      $("ozoneValue").textContent=valid(airValue("ozone"))?`${Number(airValue("ozone")).toFixed(1)} µg/m³`:"—";
+      $("airModelTime").textContent="Open-Meteo air-quality model estimate · not a ground-station reading.";
+    }
+
+    function renderOutlook() {
+      const h=state.weather.hourly, start=currentHourIndex();
+      const probs=(h.precipitation_probability||[]).slice(start,start+6).filter(valid).map(Number);
+      const max=probs.length?Math.max(...probs):null;
+      $("rainChanceValue").textContent=valid(max)?`${Math.round(max)}%`:"—";
+      if(!valid(max)){
+        $("outlookTitle").textContent="Rain outlook unavailable";
+        $("outlookDesc").textContent="Forecast guidance, not an official warning.";
+      } else if(max>=75){
+        $("outlookTitle").textContent="Rain is likely in the next 6 hours";
+        $("outlookDesc").textContent="Keep an eye on changing conditions. This is model guidance, not an official alert.";
+      } else if(max>=40){
+        $("outlookTitle").textContent="A chance of rain in the next 6 hours";
+        $("outlookDesc").textContent="Precipitation is possible; local conditions can vary.";
+      } else {
+        $("outlookTitle").textContent="Low rain chance in the next 6 hours";
+        $("outlookDesc").textContent="Forecast guidance can change as new model data arrives.";
+      }
+    }
+
+    function renderAll() {
+      if(!state.weather) return;
+      renderHero();
+      renderMetrics();
+      renderDetails();
+      renderHourly();
+      renderChart();
+      renderForecast();
+      renderSunMoon();
+      renderAir();
+      renderOutlook();
+    }
+
+    function showToast(title,message,advisory=false) {
+      $("toastTitle").textContent=title;
+      $("toastMessage").textContent=message;
+      $("toastIcon").textContent=advisory?"⚠":"✦";
+      $("toast").classList.add("show");
+      clearTimeout(state.toastTimer);
+      state.toastTimer=setTimeout(()=>$("toast").classList.remove("show"),5200);
+      if(advisory && state.settings.sound) playAlertTone();
+    }
+
+    function playAlertTone() {
+      try {
+        const AudioCtx=window.AudioContext || window.webkitAudioContext;
+        if(!AudioCtx) return;
+        const ctx=new AudioCtx(), now=ctx.currentTime;
+        [660,880].forEach((freq,j)=>{
+          const osc=ctx.createOscillator(), gain=ctx.createGain();
+          osc.frequency.value=freq;
+          osc.type="sine";
+          gain.gain.setValueAtTime(.0001,now+j*.18);
+          gain.gain.exponentialRampToValueAtTime(.09,now+j*.18+.025);
+          gain.gain.exponentialRampToValueAtTime(.0001,now+j*.18+.16);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now+j*.18);
+          osc.stop(now+j*.18+.18);
+        });
+      } catch (_) {}
+    }
+
+    function checkAdvisory() {
+      if(!state.weather || !state.settings.alerts) return;
+      const w=state.weather, start=currentHourIndex();
+      const codes=(w.hourly.weather_code||[]).slice(start,start+6).map(Number);
+      const probs=(w.hourly.precipitation_probability||[]).slice(start,start+6).filter(valid).map(Number);
+      const storm=codes.some(c=>[95,96,99].includes(c));
+      const chance=probs.length?Math.max(...probs):0;
+      let key="",title="",message="";
+      if(storm){
+        key="storm";
+        title="Thunderstorm in the forecast";
+        message="Model guidance indicates thunderstorm conditions nearby. Check official BMD and local updates.";
+      } else if(chance>=85){
+        key="rain";
+        title="Rain heads-up";
+        message=`The forecast shows up to ${Math.round(chance)}% precipitation probability in the next 6 hours. This is not an official warning.`;
+      }
+      if(key && state.lastAlertKey!==`${currentDateKey()}-${key}-${state.location.key}`){
+        state.lastAlertKey=`${currentDateKey()}-${key}-${state.location.key}`;
+        showToast(title,message,true);
+      }
+    }
+
+    function initMap() {
+      if(!window.L){
+        $("radarStatus").textContent="Map library unavailable. Weather forecasts still work.";
+        return;
+      }
+      state.map=L.map("weatherMap",{zoomControl:false,scrollWheelZoom:true}).setView([state.location.lat,state.location.lon],7);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+        maxZoom:19,attribution:"&copy; OpenStreetMap contributors"
+      }).addTo(state.map);
+      L.control.zoom({position:"topright"}).addTo(state.map);
+      state.marker=L.circleMarker([state.location.lat,state.location.lon],{
+        radius:8,color:"#e8f7f4",weight:2,fillColor:"#7ee4df",fillOpacity:.9
+      }).addTo(state.map);
+      setTimeout(()=>state.map?.invalidateSize(),250);
+    }
+
+    function updateMapLocation() {
+      if(!state.map || !state.location) return;
+      const point=[Number(state.location.lat),Number(state.location.lon)];
+      state.map.setView(point,7);
+      if(state.marker) state.marker.setLatLng(point);
+    }
+
+    function radarTimeText(frame) {
+      return frame ? new Intl.DateTimeFormat("en-BD",{hour:"numeric",minute:"2-digit",timeZone:TZ})
+        .format(new Date(Number(frame.time)*1000)) : "—";
+    }
+
+    function setRadarFrame(index) {
+      if(!state.map || !state.radarFrames.length) return;
+      state.radarIndex=clamp(Number(index),0,state.radarFrames.length-1);
+      const frame=state.radarFrames[state.radarIndex];
+      if(state.radarLayer) state.map.removeLayer(state.radarLayer);
+      const url=`${state.radarHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+      state.radarLayer=L.tileLayer(url,{opacity:.68,maxNativeZoom:7,maxZoom:12,tileSize:256,
+        attribution:"Radar &copy; RainViewer"});
+      if(state.radarEnabled) state.radarLayer.addTo(state.map);
+      $("radarSlider").value=state.radarIndex;
+      $("radarTime").textContent=radarTimeText(frame);
+    }
+
+    async function loadRadar() {
+      if(!state.map) return;
+      try {
+        const data=await fetchJSON("https://api.rainviewer.com/public/weather-maps.json");
+        state.radarHost=data.host || "https://tilecache.rainviewer.com";
+        const frames=[...(data.radar?.past||[]),...(data.radar?.nowcast||[])]
+          .filter(f=>f && f.path && f.time).sort((a,b)=>Number(a.time)-Number(b.time)).slice(-18);
+        if(!frames.length) throw new Error("No radar frames available");
+        state.radarFrames=frames;
+        $("radarSlider").max=String(frames.length-1);
+        $("radarSlider").disabled=false;
+        setRadarFrame(frames.length-1);
+        $("radarStatus").textContent="RainViewer precipitation radar · coverage and freshness vary by location.";
+        setTimeout(()=>state.map?.invalidateSize(),250);
+      } catch (_) {
+        $("radarStatus").textContent="Radar feed unavailable right now; forecast panels remain available.";
+        $("radarTime").textContent="—";
+      }
+    }
+
+    function locationKey(loc) { return loc.key || `place-${Number(loc.lat).toFixed(4)}-${Number(loc.lon).toFixed(4)}`; }
+
+    function fillCitySelect() {
+      const select=$("citySelect");
+      select.innerHTML="";
+      BD_CITIES.forEach(city=>{
+        state.locations.set(city.key,city);
+        const opt=document.createElement("option");
+        opt.value=city.key;
+        opt.textContent=city.name;
+        select.appendChild(opt);
+      });
+      if(!BD_CITIES.some(c=>c.key===state.location.key)) registerLocation({...state.location});
+      else select.value=state.location.key;
+    }
+
+    async function searchCity() {
+      const q=$("citySearch").value.trim();
+      if(!q) return;
+      const match=BD_CITIES.find(c=>c.name.toLowerCase()===q.toLowerCase());
+      if(match){selectLocation(match);return;}
+      $("searchBtn").disabled=true;
+      try {
+        const p=new URLSearchParams({name:q,count:"5",language:"en",format:"json",countryCode:"BD"});
+        const data=await fetchJSON(`https://geocoding-api.open-meteo.com/v1/search?${p}`);
+        const result=(data.results||[]).find(r=>String(r.country_code).toUpperCase()==="BD");
+        if(!result) throw new Error("No matching Bangladesh location found. Try another spelling.");
+        const loc={name:result.name,admin1:result.admin1||"Bangladesh",lat:result.latitude,lon:result.longitude};
+        loc.key=locationKey(loc);
+        selectLocation(loc);
+        $("citySearch").value="";
+      } catch(error) {
+        showToast("Location not found",error.message || "Try a Bangladesh city or district.");
+      } finally {
+        $("searchBtn").disabled=false;
+      }
+    }
+
+    function useMyLocation() {
+      if(!navigator.geolocation){
+        showToast("Location unavailable","Your browser does not provide geolocation.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const {latitude,longitude}=pos.coords;
+        if(!inBangladesh({lat:latitude,lon:longitude})){
+          showToast("Bangladesh only","Your current coordinates appear to be outside Bangladesh.");
+          return;
+        }
+        const loc={name:"My location",admin1:"Approximate position",lat:latitude,lon:longitude};
+        loc.key=locationKey(loc);
+        selectLocation(loc);
+      },error=>{
+        showToast("Location permission needed",error.message || "Allow location access, or choose a city.");
+      },{enableHighAccuracy:false,timeout:10000,maximumAge:300000});
+    }
+
+    function saveSettings() {
+      try { localStorage.setItem("megh.settings",JSON.stringify(state.settings)); } catch (_) {}
+    }
+
+    function syncSettingsUI() {
+      $("settingTemp").value=state.settings.tempUnit;
+      $("settingWind").value=state.settings.windUnit;
+      $("settingPressure").value=state.settings.pressureUnit;
+      $("settingPrecip").value=state.settings.precipUnit;
+      $("settingRefresh").value=String(state.settings.refreshMinutes);
+      $("settingAlerts").checked=!!state.settings.alerts;
+      $("settingSound").checked=!!state.settings.sound;
+      $("settingMotion").checked=!!state.settings.reduceMotion;
+      $("unitBtn").textContent=`°${state.settings.tempUnit}`;
+      $("windUnitBtn").textContent=state.settings.windUnit;
+      $("soundQuick").textContent=state.settings.sound?"♪ Sound on":"♪ Sound off";
+      document.body.classList.toggle("reduce-motion",!!state.settings.reduceMotion);
+    }
+
+    function applySettingsFromUI() {
+      state.settings.tempUnit=$("settingTemp").value;
+      state.settings.windUnit=$("settingWind").value;
+      state.settings.pressureUnit=$("settingPressure").value;
+      state.settings.precipUnit=$("settingPrecip").value;
+      state.settings.refreshMinutes=Number($("settingRefresh").value);
+      state.settings.alerts=$("settingAlerts").checked;
+      state.settings.sound=$("settingSound").checked;
+      state.settings.reduceMotion=$("settingMotion").checked;
+      saveSettings();
+      syncSettingsUI();
+      configureRefresh();
+      renderAll();
+    }
+
+    let refreshTimer=null;
+    function configureRefresh() {
+      clearInterval(refreshTimer);
+      const mins=Number(state.settings.refreshMinutes);
+      if(mins>0) refreshTimer=setInterval(()=>loadWeather(state.location,true),mins*60*1000);
+    }
+
+    function openSettings(open) {
+      $("settingsModal").classList.toggle("open",open);
+      $("settingsModal").setAttribute("aria-hidden",String(!open));
+    }
+
+    function bindEvents() {
+      $("searchBtn").addEventListener("click",searchCity);
+      $("citySearch").addEventListener("keydown",e=>{if(e.key==="Enter")searchCity();});
+      $("citySelect").addEventListener("change",e=>{
+        const loc=state.locations.get(e.target.value);
+        if(loc) selectLocation(loc);
+      });
+      $("geoBtn").addEventListener("click",useMyLocation);
+      $("refreshBtn").addEventListener("click",()=>loadWeather(state.location,false));
+      $("unitBtn").addEventListener("click",()=>{
+        state.settings.tempUnit=state.settings.tempUnit==="C"?"F":"C";
+        saveSettings();syncSettingsUI();renderAll();
+      });
+      $("windUnitBtn").addEventListener("click",()=>{
+        state.settings.windUnit=state.settings.windUnit==="km/h"?"mph":"km/h";
+        saveSettings();syncSettingsUI();renderAll();
+      });
+      $("pastBtn").addEventListener("click",()=>{state.mode="past";state.selectedHourIndex=currentHourIndex();renderHourly();renderChart();});
+      $("nextBtn").addEventListener("click",()=>{state.mode="next";state.selectedHourIndex=currentHourIndex();renderHourly();renderChart();});
+      $("hourlyStrip").addEventListener("click",e=>{
+        const button=e.target.closest("[data-hour-index]");
+        if(!button) return;
+        state.selectedHourIndex=Number(button.dataset.hourIndex);
+        renderHourly();renderChart();
+      });
+      document.querySelectorAll(".chart-tab").forEach(button=>button.addEventListener("click",()=>{
+        state.chartMetric=button.dataset.metric;renderChart();
+      }));
+      $("settingsBtn").addEventListener("click",()=>openSettings(true));
+      $("closeSettings").addEventListener("click",()=>openSettings(false));
+      $("doneSettings").addEventListener("click",()=>openSettings(false));
+      $("settingsModal").addEventListener("click",e=>{if(e.target===$("settingsModal"))openSettings(false);});
+      document.addEventListener("keydown",e=>{if(e.key==="Escape")openSettings(false);});
+      ["settingTemp","settingWind","settingPressure","settingPrecip","settingRefresh","settingAlerts","settingSound","settingMotion"]
+        .forEach(id=>$(id).addEventListener("change",applySettingsFromUI));
+      $("soundQuick").addEventListener("click",()=>{
+        state.settings.sound=!state.settings.sound;saveSettings();syncSettingsUI();
+        showToast("Sound alerts",state.settings.sound?"Sound is enabled for in-app weather advisories.":"Sound is off.");
+      });
+      $("radarSlider").addEventListener("input",e=>setRadarFrame(Number(e.target.value)));
+      $("radarToggle").addEventListener("click",()=>{
+        state.radarEnabled=!state.radarEnabled;
+        $("radarToggle").textContent=state.radarEnabled?"Radar on":"Radar off";
+        $("radarToggle").classList.toggle("active",state.radarEnabled);
+        if(state.radarLayer){
+          if(state.radarEnabled) state.radarLayer.addTo(state.map);
+          else state.map.removeLayer(state.radarLayer);
+        }
+      });
+      $("radarPlay").addEventListener("click",()=>{
+        if(!state.radarFrames.length) return;
+        if(state.radarTimer){
+          clearInterval(state.radarTimer);state.radarTimer=null;$("radarPlay").textContent="▶ Play";
+        } else {
+          $("radarPlay").textContent="Ⅱ Pause";
+          state.radarTimer=setInterval(()=>{
+            const next=state.radarIndex>=state.radarFrames.length-1?0:state.radarIndex+1;
+            setRadarFrame(next);
+          },700);
+        }
+      });
+    }
+
+    function init() {
+      fillCitySelect();
+      bindEvents();
+      syncSettingsUI();
+      initMap();
+      tickClock();
+      setInterval(tickClock,15000);
+      configureRefresh();
+      loadWeather(state.location,false);
+      loadRadar();
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>
